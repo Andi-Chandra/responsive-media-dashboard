@@ -1,179 +1,200 @@
-# Backend Structure Document
-
-This document outlines the backend architecture, hosting, and infrastructure for the **codeguide-starter** project. It uses plain language so anyone can understand how the backend is set up and how it supports the application.
+# Backend Structure Document: responsive-media-dashboard
 
 ## 1. Backend Architecture
 
-- **Framework and Design Pattern**
-  - We use **Next.js API Routes** to handle all server-side logic. These routes live alongside the frontend code in the same repository, making development and deployment simpler.
-  - The backend follows a **layered pattern**:
-    1. **API Layer**: Receives requests (login, registration, data fetch).  
-    2. **Service Layer**: Contains the core business logic (user validation, password hashing).  
-    3. **Data Access Layer**: Talks to the database via a simple ORM (e.g., Prisma or TypeORM).
+Our backend is built to be simple, scalable, and easy to maintain. Here’s how it’s put together:
 
-- **Scalability**
-  - Stateless API routes can scale horizontally—new instances can spin up on demand.  
-  - We can add caching or a message queue (e.g., Redis or RabbitMQ) without changing the core code.
+- **Next.js App Router**: Handles server-side rendering and file-based routing. We use Server Actions for secure, server-side operations like file uploads and database writes.
+- **TypeScript**: Provides type safety throughout the codebase, reducing bugs and making refactoring easier.
+- **Supabase (BaaS)**: Acts as our backend service. It handles:
+  - **Authentication** with Supabase Auth;
+  - **PostgreSQL database** for metadata;
+  - **Storage** for hosting images and videos.
+- **Docker (local dev)**: Ensures everyone on the team has a consistent development environment.
 
-- **Maintainability**
-  - Code for each feature is grouped by route (authentication, dashboard).  
-  - A service layer separates complex logic from request handling.
+This setup supports:
 
-- **Performance**
-  - Lightweight Node.js handlers keep response times low.  
-  - Future use of database connection pooling and Redis for caching repeated queries.
+- **Scalability**: Vercel’s serverless platform automatically scales Next.js functions, while Supabase scales the database and storage as needed.
+- **Maintainability**: Clear separation of concerns—Next.js handles routing/UI, Supabase handles data and auth—makes it easy to update or swap components later.
+- **Performance**: Server-side rendering and edge caching (via Vercel) deliver pages quickly, and Supabase’s hosted services are optimized for low-latency data access.
 
 ## 2. Database Management
 
-- **Database Choice**
-  - We recommend **PostgreSQL** for structured data and reliable transactions.  
-  - In-memory caching can be added later with **Redis** for session tokens or frequently read data.
+We rely on Supabase’s hosted PostgreSQL for all structured data, plus Supabase Storage for media files.
 
-- **Data Storage and Access**
-  - Use an ORM like **Prisma** or **TypeORM** to map JavaScript/TypeScript objects to database tables.
-  - Connection pooling ensures efficient use of database connections under load.
-  - Migrations track schema changes over time, keeping development, staging, and production in sync.
-
-- **Data Practices**
-  - Passwords are never stored in plain text—they are salted and hashed with **bcrypt** before saving.
-  - All outgoing data is typed and validated to prevent malformed records.
+- **PostgreSQL (SQL)**
+  - Stores metadata about slider images, gallery photos, and videos.
+  - Uses Row Level Security (RLS) to control who can read or modify data.
+- **Supabase Storage**
+  - Hosts the actual image and video files.
+  - Provides public URLs for display on the site.
+- **Data Access**
+  - All queries and mutations go through the Supabase JavaScript client (`@supabase/supabase-js`).
+  - On the server, Next.js Server Actions call Supabase directly using environment-protected keys.
+  - On public pages, we fetch data in Server Components or via `@supabase/ssr` helpers for fast, secure data retrieval.
 
 ## 3. Database Schema
 
-### Human-Readable Format
+Below is a human-friendly description followed by the SQL schema you can run in the Supabase SQL editor.
 
-- **Users**
-  - **id**: Unique identifier  
-  - **email**: User’s email address (unique)  
-  - **password_hash**: Securely hashed password  
-  - **created_at**: Account creation timestamp
+**Human-Readable Schema**
 
-- **Sessions**
-  - **id**: Unique session record  
-  - **user_id**: Links to a user  
-  - **token**: Random string for authentication  
-  - **expires_at**: When the token stops working  
-  - **created_at**: When the session was created
+1. **slider_images**: Holds homepage carousel details.
+   - `id`: Unique identifier (UUID).
+   - `created_at`: Timestamp when added.
+   - `image_url`: Link to the stored image.
+   - `title`/`description`: Optional text for the slide.
+   - `display_order`: Position in the carousel.
 
-- **DashboardItems** *(optional for dynamic data)*
-  - **id**: Unique record  
-  - **title**: Item title  
-  - **content**: Item details  
-  - **created_at**: When the item was added
+2. **gallery_images**: Stores photos for the gallery page.
+   - Similar fields to slider_images, plus `category` for grouping.
 
-### SQL Schema (PostgreSQL)
+3. **videos**: Contains video entries for the video page.
+   - `video_url`: YouTube embed or Storage link.
+   - `thumbnail_url`: Image shown before playing.
+   - `title`/`description`: Metadata text.
+
+**SQL Schema**
 ```sql
--- Users table
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- Table: slider_images
+CREATE TABLE slider_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  image_url TEXT NOT NULL,
+  title TEXT,
+  description TEXT,
+  display_order INT DEFAULT 0
 );
 
--- Sessions table
-CREATE TABLE sessions (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- Table: gallery_images
+CREATE TABLE gallery_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  image_url TEXT NOT NULL,
+  title TEXT,
+  description TEXT,
+  category TEXT
 );
 
--- Dashboard items table
-CREATE TABLE dashboard_items (
-  id SERIAL PRIMARY KEY,
+-- Table: videos
+CREATE TABLE videos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  video_url TEXT NOT NULL,
+  thumbnail_url TEXT,
   title TEXT NOT NULL,
-  content TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  description TEXT
 );
+
+-- Enable Row Level Security
+ALTER TABLE slider_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gallery_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE videos ENABLE ROW LEVEL SECURITY;
+
+-- Public read access
+CREATE POLICY "public_read" ON slider_images FOR SELECT USING (true);
+CREATE POLICY "public_read" ON gallery_images FOR SELECT USING (true);
+CREATE POLICY "public_read" ON videos FOR SELECT USING (true);
+
+-- Admin full access (authenticated users)
+CREATE POLICY "admin_manage" ON slider_images FOR ALL
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "admin_manage" ON gallery_images FOR ALL
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "admin_manage" ON videos FOR ALL
+  USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
 ```  
 
 ## 4. API Design and Endpoints
 
-- **Approach**: We follow a **RESTful** style, grouping related endpoints under `/api` directories.
+We follow a RESTful pattern using Next.js Server Actions and API routes where needed. All data operations go through Supabase functions.
 
-- **Key Endpoints**
-  - `POST /api/auth/register`  
-    • Accepts `{ email, password }`  
-    • Creates a new user and issues a session token  
-  - `POST /api/auth/login`  
-    • Accepts `{ email, password }`  
-    • Verifies credentials and returns a session token  
-  - `POST /api/auth/logout`  
-    • Invalidates the session token on the server  
-  - `GET /api/dashboard/data`  
-    • Requires a valid session  
-    • Returns user-specific data or dashboard items  
+Key actions:
 
-- **Communication**
-  - Frontend sends JSON requests; backend replies with JSON and appropriate HTTP status codes.  
-  - Protected routes check for a valid session token (in cookies or Authorization header).
+- **Public Data Fetching**
+  - Home page: fetches `slider_images`
+  - Gallery page: fetches `gallery_images`
+  - Video page: fetches `videos`
+  - Implemented directly in Server Components or with `@supabase/ssr`.
+
+- **Admin Operations (Server Actions)**
+  - `addSliderImage(formData)`
+  - `updateSliderImage(id, formData)`
+  - `deleteSliderImage(id)`
+  - (Similarly for gallery and videos.)
+  - Each action:
+    1. Uploads file to Supabase Storage.
+    2. Gets public URL.
+    3. Inserts/updates/deletes the corresponding database record.
+
+- **Authentication Endpoints**
+  - Handled by Supabase Auth via client library.
+  - Sign-in page (`/sign-in`) uses `supabase.auth.signInWithPassword()`.
+  - Session checks in `/dashboard/layout` ensure only logged-in admins can access protected routes.
 
 ## 5. Hosting Solutions
 
-- **Cloud Provider**:  
-  - **Vercel** (recommended) offers seamless Next.js deployments, auto-scaling, and built-in CDN.  
-  - Alternatively, **Netlify** or any Node.js-capable host will work.
+- **Vercel (Next.js)**
+  - Deploys the frontend and serverless functions globally.
+  - Automatically handles SSL, load balancing, and scaling.
+- **Supabase**
+  - Fully managed PostgreSQL and object storage.
+  - Built-in Auth service.
 
-- **Benefits**
-  - **Reliability**: Global servers and failover across regions.  
-  - **Scalability**: Auto-scale serverless functions based on traffic.  
-  - **Cost-Effectiveness**: Pay-per-use model means low cost for small projects.
+This combination offers:
+
+- **Reliability**: Both platforms guarantee high uptime.
+- **Scalability**: Serverless and managed services scale with demand.
+- **Cost-Effectiveness**: Pay-as-you-go pricing, free tiers for small workloads.
 
 ## 6. Infrastructure Components
 
-- **Load Balancer**
-  - Provided by the hosting platform—distributes API requests across function instances.
-
-- **CDN (Content Delivery Network)**
-  - Vercel’s global edge network caches static assets (CSS, JS, images) for faster page loads.
-
+- **Load Balancers & Edge Network**
+  - Vercel’s global edge automatically routes users to the nearest server.
 - **Caching**
-  - **Redis** (optional) for session storage or caching dashboard queries to reduce database load.
+  - Static assets (JS, CSS, images) are cached at the edge.
+  - ISR (Incremental Static Regeneration) can be enabled for cacheable pages.
+- **CDN**
+  - Vercel’s built-in CDN serves all static and pre-rendered content.
+- **Containerization**
+  - Docker and `docker-compose` for local database and environment replication.
 
-- **Object Storage**
-  - For file uploads or backups, integrate with AWS S3 or similar services.
-
-- **Message Queue**
-  - In future, use **RabbitMQ** or **Kafka** for background tasks (e.g., email notifications).
+All components work together to deliver fast, reliable pages and APIs.
 
 ## 7. Security Measures
 
-- **Authentication & Authorization**
-  - Passwords hashed with **bcrypt** and salted.  
-  - Session tokens stored in secure, HttpOnly cookies or Authorization headers.  
-  - Protected endpoints verify tokens before proceeding.
-
-- **Data Encryption**
-  - **HTTPS/TLS** encrypts data in transit.  
-  - Database connections use SSL to encrypt data between the app and the database.
-
-- **Input Validation**
-  - Every incoming request is validated (e.g., valid email format, password length) to prevent SQL injection or other attacks.
-
-- **Web Security Best Practices**
-  - Enable **CORS** policies to limit allowed origins.  
-  - Use **CSRF tokens** or same-site cookies to prevent cross-site requests.  
-  - Set secure headers with **Helmet** or a similar middleware.
+- **Authentication**: Supabase Auth with secure password flow; admin-only sign-in.
+- **Authorization**: Row Level Security policies restrict data writes to authenticated users.
+- **Data Encryption**:
+  - TLS for all traffic (Vercel & Supabase endpoints).
+  - Encryption at rest on Supabase storage and database.
+- **Environment Variables**
+  - Supabase keys and other secrets stored in Vercel’s dashboard, never in source code.
+- **Server-Side Actions**
+  - All data mutations (inserts, updates, deletes) happen on the server to prevent tampering.
 
 ## 8. Monitoring and Maintenance
 
-- **Performance Monitoring**
-  - Integrate **Sentry** or **LogRocket** for real-time crash reporting and performance tracing.  
-  - Use Vercel’s built-in analytics to track request latencies and error rates.
-
-- **Logging**
-  - Structured logs (JSON) for all API requests and errors, shipped to a log management service like **Datadog** or **Logflare**.
-
+- **Logging & Metrics**
+  - Supabase dashboard provides query and error logs.
+  - Vercel Analytics tracks page performance and error rates.
+- **Alerts**
+  - Set up email or Slack notifications for deployment failures and runtime errors.
+- **Backups & Updates**
+  - Supabase offers automated database backups.
+  - Regular dependency updates (Next.js, Supabase libs) and security patching.
 - **Health Checks**
-  - Define a `/health` endpoint that returns a 200 status if the service is up and the database is reachable.
-
-- **Maintenance Strategies**
-  - Automated migrations run on deploy to keep the database schema up to date.  
-  - Scheduled dependency audits and security scans (e.g., `npm audit`).
-  - Regular backups of the database (daily or weekly depending on usage).
+  - Simple uptime checks (e.g., ping home route) to ensure the site is live.
 
 ## 9. Conclusion and Overall Backend Summary
 
-The backend for **codeguide-starter** is built on Next.js API Routes and Node.js, paired with PostgreSQL for data and optional Redis for caching. It follows a clear layered architecture that keeps code easy to maintain and extend. With RESTful endpoints for authentication and data, secure practices like password hashing and HTTPS, and hosting on Vercel for scalability and global performance, this setup meets the project’s goals for a fast, secure, and developer-friendly foundation. Future enhancements—such as background job queues, advanced monitoring, or richer data models—can be added without disrupting the core structure.
+This backend is designed to be robust yet easy to understand:
+
+- **Next.js** handles routing and server-side logic.
+- **Supabase** manages authentication, database, and file storage.
+- **Vercel** delivers a fast, scalable hosting environment.
+
+By using Server Actions, RLS, and edge caching, we ensure both security and performance. The clear separation between public and admin areas, combined with a straightforward schema and secure defaults, aligns perfectly with the project’s goal of a responsive media site plus a locked-down content management dashboard.

@@ -1,14 +1,14 @@
 flowchart TD
-  Start[Landing Page]
-  SignUpPage[Sign Up Page]
-  SignInPage[Sign In Page]
-  AuthAPI[Authentication API Endpoint]
-  DashboardPage[Dashboard Page]
-  Start -->|Select Sign Up| SignUpPage
-  Start -->|Select Sign In| SignInPage
-  SignUpPage -->|Submit Credentials| AuthAPI
-  SignInPage -->|Submit Credentials| AuthAPI
-  AuthAPI -->|Success| DashboardPage
-  AuthAPI -->|Error| SignUpPage
-  AuthAPI -->|Error| SignInPage
-  DashboardPage -->|Click Logout| Start
+    A[Start] --> B[Public Site]
+    B --> C[Home Page]
+    B --> D[Gallery Page]
+    B --> E[Video Page]
+    B --> F[VTC KKP]
+    B --> G[Dashboard PNBP]
+    A --> H[Admin Dashboard]
+    H --> I[Sign In]
+    I --> J[Dashboard Home]
+    J --> K[Manage Slider Images]
+    J --> L[Manage Gallery Items]
+    J --> M[Manage Videos]
+    J --> N[Manage Users]

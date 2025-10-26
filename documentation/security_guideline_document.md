@@ -1,116 +1,131 @@
-# Security Guidelines for codeguide-starter
+# Security Guidelines for "responsive-media-dashboard"
 
-This document defines mandatory security principles and implementation best practices tailored to the **codeguide-starter** repository. It aligns with Security-by-Design, Least Privilege, Defense-in-Depth, and other core security tenets. All sections reference specific areas of the codebase (e.g., `/app/api/auth/route.ts`, CSS files, environment configuration) to ensure practical guidance.
-
----
-
-## 1. Security by Design
-
-• Embed security from day one: review threat models whenever adding new features (e.g., new API routes, data fetching).
-• Apply “secure defaults” in Next.js configuration (`next.config.js`), enabling strict mode and disabling debug flags in production builds.
-• Maintain a security checklist in your PR template to confirm that each change has been reviewed against this guideline.
+This document outlines the security principles and best practices tailored to the **responsive-media-dashboard** project—a Next.js + shadcn/ui frontend with Supabase backend starter template. It covers authentication, data handling, infrastructure, and more to ensure your public media galleries and admin CMS remain secure by design.
 
 ---
 
-## 2. Authentication & Access Control
+## 1. Authentication & Access Control
 
-### 2.1 Password Storage
-- Use **bcrypt** (or Argon2) with a per-user salt to hash passwords in `/app/api/auth/route.ts`.
-- Enforce a strong password policy on both client and server: minimum 12 characters, mixed case, numbers, and symbols.
+- **Supabase Auth Integration**
+  - Use Supabase Auth for all administrative logins. Disable the public sign-up flow (`/app/sign-up`).
+  - Store only the `access_token` and `refresh_token` in **HttpOnly**, **Secure**, **SameSite=Strict** cookies.
+  - Enforce idle and absolute session timeouts; require re-authentication for sensitive operations.
 
-### 2.2 Session Management
-- Issue sessions via Secure, HttpOnly, SameSite=strict cookies. Do **not** expose tokens to JavaScript.
-- Implement absolute and idle timeouts. For example, invalidate sessions after 30 minutes of inactivity.
-- Protect against session fixation by regenerating session IDs after authentication.
+- **Role-Based Access Control (RBAC) & RLS**
+  - Define a single `authenticated` role for admins in Supabase. Use Row Level Security (RLS) to restrict write operations to this role.
+  - Public read access policy should allow `SELECT` on media tables; all `INSERT`, `UPDATE`, and `DELETE` operations must require an authenticated session.
+  - Implement server-side authorization checks in every Next.js Server Action or API route—never rely on client-side flags.
 
-### 2.3 Brute-Force & Rate Limiting
-- Apply rate limiting at the API layer (e.g., using `express-rate-limit` or Next.js middleware) on `/api/auth` to throttle repeated login attempts.
-- Introduce exponential backoff or temporary lockout after N failed attempts.
-
-### 2.4 Role-Based Access Control (Future)
-- Define user roles in your database model (e.g., `role = 'user' | 'admin'`).
-- Enforce server-side authorization checks in every protected route (e.g., in `dashboard/layout.tsx` loader functions).
+- **Multi-Factor Authentication (Optional but Recommended)**
+  - Consider enabling Supabase’s OTP/MFA capabilities for administrative logins to add a second factor.
 
 ---
 
-## 3. Input Handling & Processing
+## 2. Input Handling & File Uploads
 
-### 3.1 Validate & Sanitize All Inputs
-- On **client** (`sign-up/page.tsx`, `sign-in/page.tsx`): perform basic format checks (email regex, password length).
-- On **server** (`/app/api/auth/route.ts`): re-validate inputs with a schema validator (e.g., `zod`, `Joi`).
-- Reject or sanitize any unexpected fields to prevent injection attacks.
+- **Server-Side Validation**
+  - In Next.js Server Actions or API routes, validate all incoming fields (title, description, category) against expected types and length limits.
+  - Explicitly whitelist allowed fields; reject any unexpected payloads.
 
-### 3.2 Prevent Injection
-- If you introduce a database later, always use parameterized queries or an ORM (e.g., Prisma) rather than string concatenation.
-- Avoid dynamic `eval()` or template rendering with unsanitized user input.
+- **File Upload Security**
+  - Restrict file types (e.g., `image/jpeg`, `image/png`, `video/mp4`) and maximum file sizes in your upload logic.
+  - Scan files for malware (integrate virus-scanning service or Supabase Edge Functions) before storing in Supabase Storage.
+  - Store media in a non-public bucket; generate time-limited signed URLs for public consumption.
 
-### 3.3 Safe Redirects
-- When redirecting after login or logout, validate the target against an allow-list to prevent open redirects.
-
----
-
-## 4. Data Protection & Privacy
-
-### 4.1 Encryption & Secrets
-- Enforce HTTPS/TLS 1.2+ for all front-end ↔ back-end communications.
-- Never commit secrets—use environment variables and a secrets manager (e.g., AWS Secrets Manager, Vault).
-
-### 4.2 Sensitive Data Handling
-- Do ​not​ log raw passwords, tokens, or PII in server logs. Mask or redact any user identifiers.
-- If storing PII in `data.json` or a future database, classify it and apply data retention policies.
+- **Prevent Injection Attacks**
+  - Use Supabase client libraries with parameterized queries under the hood; avoid constructing raw SQL in code.
+  - Sanitize any user-supplied HTML or markdown before rendering (if you allow rich-text descriptions).
 
 ---
 
-## 5. API & Service Security
+## 3. Data Protection & Privacy
 
-### 5.1 HTTPS Enforcement
-- In production, redirect all HTTP traffic to HTTPS (e.g., via Vercel’s redirect rules or custom middleware).
+- **Encryption in Transit and at Rest**
+  - Enforce HTTPS/TLS (1.2+) via Vercel or custom domain settings. Redirect all HTTP traffic to HTTPS.
+  - Supabase automatically encrypts data at rest in Postgres and Storage; verify compliance with your organizational policies.
 
-### 5.2 CORS
-- Configure `next.config.js` or API middleware to allow **only** your front-end origin (e.g., `https://your-domain.com`).
+- **Secrets Management**
+  - Store Supabase URL, anon key, and service role key in environment variables (e.g., `.env.local`, Vercel project settings). Do **not** commit them to Git.
+  - Consider using a secrets vault (HashiCorp Vault, AWS Secrets Manager) for production service-role credentials.
 
-### 5.3 API Versioning & Minimal Exposure
-- Version your API routes (e.g., `/api/v1/auth`) to handle future changes without breaking clients.
-- Return only necessary fields in JSON responses; avoid leaking internal server paths or stack traces.
+- **Logging & Monitoring**
+  - Log authentication events (sign-in, sign-out, failed attempts) and admin actions (create/update/delete media/users).
+  - Avoid logging sensitive fields (passwords, tokens). Mask or redact any personally identifiable information (PII).
 
 ---
 
-## 6. Web Application Security Hygiene
+## 4. API & Service Security
 
-### 6.1 CSRF Protection
-- Use anti-CSRF tokens for any state-changing API calls. Integrate Next.js CSRF middleware or implement synchronizer tokens stored in cookies.
+- **Next.js Server Actions & API Routes**
+  - Protect every endpoint with session checks. Return `401 Unauthorized` for missing or invalid sessions.
+  - Enforce appropriate HTTP verbs: `GET` for read, `POST` for create, `PUT/PATCH` for update, `DELETE` for removal.
 
-### 6.2 Security Headers
-- In `next.config.js` (or a custom server), add these headers:
-  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
+- **Rate Limiting & Throttling**
+  - Integrate middleware (e.g., `next-rate-limit`) to prevent brute-force attacks on the sign-in endpoint and excessive media requests.
+
+- **CORS & Same-Origin Policies**
+  - If you expose any API under a separate domain or subdomain, restrict CORS to your front-end origin only.
+
+---
+
+## 5. Web Application Security Hygiene
+
+- **Security Headers** (configured via `next.config.js` or a custom server)
+  - `Strict-Transport-Security`: `max-age=63072000; includeSubDomains; preload`
+  - `Content-Security-Policy`: restrict script/style sources to your domain and vetted CDNs, disallow inline scripts where possible.
   - `X-Content-Type-Options: nosniff`
-  - `X-Frame-Options: DENY`
+  - `X-Frame-Options: DENY` (prevent clickjacking)
   - `Referrer-Policy: no-referrer-when-downgrade`
-  - `Content-Security-Policy`: restrict script/style/src to self and trusted CDNs.
 
-### 6.3 Secure Cookies
-- Set `Secure`, `HttpOnly`, `SameSite=Strict` on all cookies. Avoid storing sensitive data in `localStorage`.
+- **Cookie Hardening**
+  - All session cookies must be `Secure`, `HttpOnly`, and `SameSite=Strict`.
 
-### 6.4 Prevent XSS
-- Escape or encode all user-supplied data in React templates. Avoid `dangerouslySetInnerHTML` unless content is sanitized.
+- **CSRF Protection**
+  - For any state-changing requests issued from client-side forms, implement anti-CSRF tokens or use the `SameSite=Strict` cookie strategy.
 
----
-
-## 7. Infrastructure & Configuration Management
-
-- Harden your hosting environment (e.g., Vercel/Netlify) by disabling unnecessary endpoints (GraphQL/GraphiQL playgrounds in production).
-- Rotate secrets and API keys regularly via your secrets manager.
-- Maintain minimal privileges: e.g., database accounts should only have read/write on required tables.
-- Keep Node.js, Next.js, and all system packages up to date.
+- **Client-Side Storage**
+  - Do not store tokens or PII in `localStorage` or `sessionStorage`.
 
 ---
 
-## 8. Dependency Management
+## 6. Infrastructure & Configuration Management
 
-- Commit and maintain `package-lock.json` to guarantee reproducible builds.
-- Integrate a vulnerability scanner (e.g., GitHub Dependabot, Snyk) to monitor and alert on CVEs in dependencies.
-- Trim unused packages; each added library increases the attack surface.
+- **Container & Deployment Hardenings**
+  - Run your Node.js process under a non-root user in Docker.
+  - Disable debug flags (`NODE_ENV=production`) and remove source maps from production builds.
+
+- **Environment Management**
+  - Use environment-specific configuration: `development`, `staging`, `production`.
+  - Enable automatic dependency vulnerability scans in your CI/CD pipeline (GitHub Actions, GitLab CI).
+
+- **TLS/SSL Configuration**
+  - Only support TLS 1.2+ and strong cipher suites. Let Vercel or your cloud provider handle termination.
 
 ---
 
-Adherence to these guidelines will ensure that **codeguide-starter** remains secure, maintainable, and resilient as it evolves. Regularly review and update this document to reflect new threats and best practices.
+## 7. Dependency Management
+
+- **Secure Dependencies**
+  - Maintain `package-lock.json` or `yarn.lock` to pin versions. Review new dependency additions for security track records.
+
+- **Regular Updates & SCA**
+  - Integrate a Software Composition Analysis tool (e.g., Dependabot, Snyk) to detect and patch known vulnerabilities in both direct and transitive dependencies.
+
+- **Minimize Attack Surface**
+  - Only install and import packages actually used by your application. Remove unused dependencies regularly.
+
+---
+
+## 8. Ongoing Security Practices
+
+- **Code Reviews & Penetration Testing**
+  - Enforce security-focused code reviews for all pull requests, especially around authentication, file uploads, and Server Actions.
+  - Schedule periodic penetration tests against your staging environment (including RLS policy testing).
+
+- **Monitoring & Incident Response**
+  - Configure alerting on abnormal patterns (multiple failed logins, high error rates).
+  - Prepare an incident response plan detailing containment, eradication, recovery, and post-mortem steps.
+
+---
+
+By adhering to these guidelines, the **responsive-media-dashboard** project will follow a defense-in-depth approach, enforce least privilege, and maintain secure defaults—from development through production.
