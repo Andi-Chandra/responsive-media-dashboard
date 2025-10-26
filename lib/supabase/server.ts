@@ -1,12 +1,32 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { Database } from './schema'
 
 // Create a Supabase client for interacting with the database from the server side
 export const createServerClient = async () => {
   const cookieStore = cookies()
-  return createServerComponentClient<Database>({
-    cookies: () => cookieStore,
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase environment variables for server-side usage')
+  }
+
+  return createSupabaseServerClient<Database>(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll().map(({ name, value }) => ({ name, value }))
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // ignore in read-only contexts (e.g., React Server Components)
+          }
+        })
+      },
+    },
   })
 }
 
