@@ -15,10 +15,12 @@ import {
   IconFolder,
   IconHelp,
   IconListDetails,
+  IconPhoto,
   IconReport,
   IconSearch,
   IconSettings,
   IconUsers,
+  IconVideo,
 } from "@tabler/icons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -39,27 +41,32 @@ const staticData = {
   navMain: [
     {
       title: "Dashboard",
-      url: "#",
+      url: "/dashboard",
       icon: IconDashboard,
     },
     {
-      title: "Lifecycle",
-      url: "#",
+      title: "Slider Images",
+      url: "/dashboard/slider",
+      icon: IconPhoto,
+    },
+    {
+      title: "Gallery",
+      url: "/dashboard/gallery",
+      icon: IconCamera,
+    },
+    {
+      title: "Videos",
+      url: "/dashboard/videos",
+      icon: IconVideo,
+    },
+    {
+      title: "DataRekon",
+      url: "/dashboard/rekon",
       icon: IconListDetails,
     },
     {
-      title: "Analytics",
-      url: "#",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "#",
+      title: "Users",
+      url: "/dashboard/users",
       icon: IconUsers,
     },
   ],

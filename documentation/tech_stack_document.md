@@ -1,90 +1,128 @@
-# Tech Stack Document
+# Tech Stack Document for Responsive Media Dashboard
 
-This document explains the key technologies chosen for the **codeguide-starter** project. It’s written in everyday language so anyone—technical or not—can understand why each tool was picked and how it supports the application.
+This document explains the technology choices behind the Responsive Media Dashboard starter template. It's written in clear, everyday language so anyone can understand why we picked each tool and how they work together.
 
-## 1. Frontend Technologies
-The frontend is everything the user sees and interacts with. For this project, we’ve used:
+## Frontend Technologies
 
-- **Next.js (App Router)**
-  - A React framework that makes page routing, server-side rendering, and API routes very simple.
-  - Enhances user experience by pre-rendering pages on the server or at build time, leading to faster initial load.
-- **React 18**
-  - The underlying library for building user interfaces with reusable components.
-  - Provides a smooth, interactive experience thanks to its virtual DOM and modern hooks.
+These are the tools that shape what you see and how you interact with the site.
+
+- **Next.js (with App Router)**
+  - Provides page-based routing and server-side rendering out of the box.
+  - Lets us load data on the server, which makes pages load faster and improves SEO.
+
 - **TypeScript**
-  - A superset of JavaScript that adds types (labels for data).
-  - Helps catch errors early during development and makes the code easier to maintain.
-- **CSS (globals.css & theme.css)**
-  - **globals.css** applies base styles (fonts, colors, resets) across the entire app.
-  - **dashboard/theme.css** defines the look and feel specific to the dashboard area.
-  - This separation keeps styles organized and avoids accidental style conflicts.
+  - A version of JavaScript with built-in checks to catch mistakes early.
+  - Helps keep the codebase clear and reduces bugs as the project grows.
 
-By combining these tools, we have a clear structure (Next.js folders for pages and layouts), safer code (TypeScript), and flexible styling with vanilla CSS.
+- **shadcn/ui**
+  - A collection of ready-made, accessible UI components (buttons, dialogs, carousels).
+  - Built on top of Radix UI primitives, giving us consistent styling and behavior.
 
-## 2. Backend Technologies
-The backend handles data, user accounts, and the logic behind the scenes. Our choices here are:
+- **Tailwind CSS**
+  - A utility-first styling framework: instead of writing custom CSS, we pick ready classes.
+  - Speeds up design work and keeps the final CSS bundle small.
 
-- **Next.js API Routes**
-  - Allows us to write server-side code (`route.ts` files) alongside our frontend in the same project.
-  - Runs on Node.js, so we can handle requests like sign-up, sign-in, and data fetching in one place.
-- **Node.js Runtime**
-  - The JavaScript environment on the server that executes our API routes.
-- **bcrypt** (npm package)
-  - A library for hashing passwords securely before storing them.
-  - Ensures that even if someone got access to our data, raw passwords aren’t visible.
-- **(Optional) NextAuth.js or JWT**
-  - While this starter kit shows a custom authentication flow, it can easily integrate services like NextAuth.js for email-based login or JWT (JSON Web Tokens) for stateless sessions.
+- **Radix UI**
+  - Underpins shadcn/ui with unstyled, accessible building blocks.
+  - Gives us full control over look and feel while handling keyboard/mouse interactions.
 
-These components work together to receive user credentials, verify or store them securely, manage sessions or tokens, and deliver protected data back to the frontend.
+- **React Hooks**
+  - Built-in state and effect management tools (useState, useEffect, etc.).
+  - Keeps component logic clean and easy to follow without extra libraries.
 
-## 3. Infrastructure and Deployment
-Infrastructure covers where and how we host the app, as well as how changes get delivered:
+- **Next.js Image & Head Components**
+  - Optimizes images automatically (resizing, lazy loading).
+  - Manages HTML head tags (title, meta) for better SEO and social sharing.
+
+## Backend Technologies
+
+These tools power the data and logic behind the scenes, including content storage and user authentication.
+
+- **Supabase**
+  - A Backend-as-a-Service platform built on PostgreSQL.
+  - Handles:
+    - **Auth**: Secure sign-in flow for admin users (public sign-up disabled).
+    - **Database**: Stores metadata for sliders, gallery images, and videos.
+    - **Storage**: Hosts the actual image and video files.
+
+- **@supabase/supabase-js & @supabase/ssr**
+  - Official JavaScript libraries to talk to Supabase from both browser and server.
+  - Offer helper functions for data fetching, file uploads, and user sessions.
+
+- **Next.js Server Actions**
+  - Let us run code on the server when a form is submitted (for example, uploading a file).
+  - Keep API logic close to the page or component that needs it, simplifying development.
+
+- **PostgreSQL (via Supabase)**
+  - Stores structured data with full SQL power.
+  - We use Row Level Security (RLS) policies to let anyone read public content but only admins can edit.
+
+## Infrastructure and Deployment
+
+How we host, build, and maintain the application.
+
+- **Vercel**
+  - The recommended platform for hosting Next.js apps.
+  - Provides automatic builds and deployments on every code push.
+
+- **Docker (for local development)**
+  - Includes a Dockerfile and docker-compose setup to mirror production-like environments.
+  - Ensures all team members work in the same setup, avoiding “it works on my machine” issues.
 
 - **Git & GitHub**
-  - Version control system (Git) and remote hosting (GitHub) keep track of all code changes and allow team collaboration.
-- **Vercel (or Netlify)**
-  - A popular hosting service optimized for Next.js, with one-click deployments and global content delivery.
-  - Automatically rebuilds and deploys the site whenever code is pushed to the main branch.
-- **GitHub Actions (CI/CD)**
-  - Automates tasks like linting (ESLint), formatting (Prettier), and running any tests you add.
-  - Ensures that only clean, tested code goes live.
+  - Version control system to track code changes.
+  - GitHub repository for collaboration, code reviews, and issue tracking.
 
-Together, these tools provide a reliable, scalable setup where every code change is tested and deployed quickly, with minimal manual work.
+- **Continuous Deployment**
+  - Vercel’s built-in pipeline builds and deploys the app whenever changes land on the main branch.
+  - Keeps staging and production versions up to date automatically.
 
-## 4. Third-Party Integrations
-While this starter kit is minimal by design, it already includes or can easily add:
+- **Environment Variables**
+  - Securely store Supabase keys and other secrets in Vercel’s settings or a `.env.local` file for local development.
 
-- **bcrypt**
-  - For secure password hashing (included as an npm dependency).
-- **NextAuth.js** (optional)
-  - A full-featured authentication library supporting email/password, OAuth, and more.
-- **Sentry or LogRocket** (optional)
-  - For real-time error tracking and performance monitoring in production.
+## Third-Party Integrations
 
-These integrations help extend the app’s capabilities without building every feature from scratch.
+Services we connect to for added functionality without reinventing the wheel.
 
-## 5. Security and Performance Considerations
-We’ve baked in several measures to keep users safe and the app running smoothly:
+- **Supabase (Auth, Database, Storage)**
+  - Described above under Backend Technologies.
 
-Security:
-- Passwords are never stored in plain text—bcrypt hashes them with a random salt.
-- API routes can implement CSRF protection and input validation to block malicious requests.
-- Session tokens or cookies are marked secure and HttpOnly to prevent theft via JavaScript.
+- **Embedded Dashboards**
+  - Two public pages (`VTC KKP` and `Dashboard PNBP`) simply render external content via `<iframe>`.
+  - Gives users direct access to those dashboards without leaving the site.
 
-Performance:
-- Server-side rendering (SSR) and static site generation (SSG) in Next.js deliver pages faster.
-- Code splitting and lazy-loaded components ensure users only download what they need.
-- Global CSS and theme files are small and cached by the browser for quick repeat visits.
+- **Browser Analytics (optional)**
+  - You can plug in tools like Google Analytics or Plausible by adding their scripts in the Next.js head.
+  - Helps you track visitor behavior on public pages.
 
-These strategies work together to give users a fast, secure experience every time.
+## Security and Performance Considerations
 
-## 6. Conclusion and Overall Tech Stack Summary
-In building **codeguide-starter**, we chose technologies that:
+Measures we’ve taken to keep the app safe and snappy.
 
-- Align with modern web standards (Next.js, React, TypeScript).
-- Provide a clear, file-based project structure for rapid onboarding.
-- Offer built-in support for server-side rendering, API routes, and static assets.
-- Emphasize security through password hashing, session management, and safe defaults.
-- Enable easy scaling and future enhancements via modular code and optional integrations.
+- **Authentication & Authorization**
+  - Supabase Auth ensures only approved admins can sign in.
+  - Public sign-up is disabled to prevent unwanted accounts.
+  - Server Actions and API calls always check the user session before making changes.
 
-This stack strikes a balance between simplicity for newcomers and flexibility for experienced teams. It accelerates development of a secure authentication flow and a polished dashboard, while leaving room to plug in databases, test suites, and advanced features as the project grows.
+- **Row Level Security (RLS)**
+  - SQL policies grant read-only access to anyone visiting the public site.
+  - Only users with an authenticated role can insert, update, or delete records.
+
+- **Data Protection**
+  - All secrets (API keys, database URLs) live in environment variables, not in the code.
+
+- **Performance Optimizations**
+  - Server-side rendering (SSR) and static generation (SSG) for fast initial loads.
+  - Automatic image optimization via Next.js `Image` component.
+  - Tailwind CSS removes unused styles in production builds, keeping CSS bundles small.
+
+## Conclusion and Overall Tech Stack Summary
+
+We chose this mix of technologies to balance ease of development, performance, maintainability, and security:
+
+- **Next.js + TypeScript** gives us a modern, type-safe foundation with built-in rendering strategies.
+- **shadcn/ui (Radix + Tailwind)** offers polished, accessible UI components without sacrificing flexibility.
+- **Supabase** streamlines backend needs—authentication, database, and file storage—under a single roof.
+- **Docker, GitHub, and Vercel** create a reliable development-to-deployment pipeline.
+
+Together, these tools let you quickly launch a responsive public media site and a secure admin portal, with clear paths for future growth (analytics, more integrations, custom theming, and so on). This tech stack is designed to be both developer-friendly and user-focused, ensuring a smooth experience on every device.

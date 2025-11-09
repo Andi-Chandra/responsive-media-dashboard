@@ -1,117 +1,83 @@
-# Project Requirements Document: codeguide-starter
-
----
+# Project Requirements Document (PRD)
 
 ## 1. Project Overview
+This project, **Responsive Media Dashboard**, is a full-stack web application that separates a public-facing media site from a secure admin dashboard. The public site features a homepage image slider, a photo gallery, a video showcase, and two pages embedding external dashboards via iframes ("VTC KKP" and "Dashboard PNBP"). Meanwhile, the admin dashboard provides a protected content management system (CMS) for administrators to upload, edit, and delete slider images, gallery photos, and videos, as well as manage other admin accounts.
 
-The **codeguide-starter** project is a boilerplate web application that provides a ready-made foundation for any web project requiring secure user authentication and a post-login dashboard. It sets up the common building blocks—sign-up and sign-in pages, API routes to handle registration and login, and a simple dashboard interface driven by static data. By delivering this skeleton, it accelerates development time and ensures best practices are in place from day one.
-
-This starter kit is being built to solve the friction developers face when setting up repeated common tasks: credential handling, session management, page routing, and theming. Key objectives include: 1) delivering a fully working authentication flow (registration & login), 2) providing a gated dashboard area upon successful login, 3) establishing a clear, maintainable project structure using Next.js and TypeScript, and 4) demonstrating a clean theming approach with global and section-specific CSS. Success is measured by having an end-to-end login journey in under 200 lines of code and zero runtime type errors.
-
----
+We're building this app to give content teams an easy, centralized way to manage and present visual media, without exposing public users to CMS functionality. Key objectives include clear separation between public and admin areas, fast page loads using server-side rendering (SSR), secure file storage, and robust role-based access. Success criteria are: 1) public pages load in under two seconds; 2) admins can perform CRUD (Create, Read, Update, Delete) operations on all media; and 3) unauthorized users are prevented from accessing the admin portal.
 
 ## 2. In-Scope vs. Out-of-Scope
 
 ### In-Scope (Version 1)
-- User registration (sign-up) form with validation
-- User login (sign-in) form with validation
-- Next.js API routes under `/api/auth/route.ts` handling:
-  - Credential validation
-  - Password hashing (e.g., bcrypt)
-  - Session creation or JWT issuance
-- Protected dashboard pages under `/dashboard`:
-  - `layout.tsx` wrapping dashboard content
-  - `page.tsx` rendering static data from `data.json`
-- Global application layout in `/app/layout.tsx`
-- Basic styling via `globals.css` and `dashboard/theme.css`
-- TypeScript strict mode enabled
+- Public pages:
+  - Home page with an image slider (carousel)
+  - Gallery page displaying a responsive grid of photos
+  - Video page showing embedded videos or thumbnails
+  - Two static pages (`VTC KKP`, `Dashboard PNBP`) with `<iframe>` embeds
+- Admin dashboard (protected by Supabase Auth):
+  - CRUD interface for slider images, gallery images, and videos
+  - File uploads to Supabase Storage
+  - Management of admin user accounts (create, list, delete)
+- Supabase integration:
+  - Supabase Auth for admin sign-in (no public sign-up)
+  - Supabase Database (PostgreSQL) with Row Level Security (RLS)
+  - Supabase Storage for media files
+- Theming support (light/dark mode) with shadcn/ui components
+- Containerized local development (Docker)
 
-### Out-of-Scope (Later Phases)
-- Integration with a real database (PostgreSQL, MongoDB, etc.)
-- Advanced authentication flows (password reset, email verification, MFA)
-- Role-based access control (RBAC)
-- Multi-tenant or white-label theming
-- Unit, integration, or end-to-end testing suites
-- CI/CD pipeline and production deployment scripts
-
----
+### Out-of-Scope (Planned for Later)
+- Public user accounts or sign-up flows
+- Advanced analytics or reporting features
+- Comments, likes, or social sharing for media
+- Multi-language support
+- Mobile apps or push notifications
+- Third-party payment or e-commerce integration
 
 ## 3. User Flow
 
-A new visitor lands on the root URL and sees a welcome page with options to **Sign Up** or **Sign In**. If they choose Sign Up, they fill in their email, password, and hit “Create Account.” The form submits to `/api/auth/route.ts`, which hashes the password, creates a new user session or token, and redirects them to the dashboard. If any input is invalid, an inline error message explains the issue (e.g., “Password too short”).
+A **public visitor** lands on the Home page and sees a full-width image carousel that auto-rotates through slider images. They use the site header’s navigation links—Gallery, Video, VTC KKP, Dashboard PNBP—to explore the media. On the Gallery page, they scroll through a responsive grid of image cards. On the Video page, they view embedded clips or video thumbnails. If they select VTC KKP or Dashboard PNBP, the page renders an external dashboard via an `<iframe>`.
 
-Once authenticated, the user is taken to the `/dashboard` route. Here they see a sidebar or header defined by `dashboard/layout.tsx`, and the main panel pulls in static data from `data.json`. They can log out (if that control is present), but otherwise their entire session is managed by server-side cookies or tokens. Returning users go directly to Sign In, submit credentials, and upon success they land back on `/dashboard`. Any unauthorized access to `/dashboard` redirects back to Sign In.
-
----
+An **administrator** navigates to `/dashboard` and is prompted to sign in. After entering credentials, they land on the admin dashboard home, where a sidebar lists sections: Slider Images, Gallery, Videos, Users. Clicking “Gallery” opens a table of current gallery items, each with Edit and Delete actions. The admin clicks “Add New,” fills out a form (title, description, file upload), and submits. A server-side action uploads the file to Supabase Storage, writes metadata to the database, and the table refreshes to show the new item. Similar flows apply for slider images, videos, and user management.
 
 ## 4. Core Features
-
-- **Sign-Up Page (`/app/sign-up/page.tsx`)**: Form fields for email & password, client-side validation, POST to `/api/auth`.
-- **Sign-In Page (`/app/sign-in/page.tsx`)**: Form fields for email & password, client-side validation, POST to `/api/auth`.
-- **Authentication API (`/app/api/auth/route.ts`)**: Handles both registration and login based on HTTP method, integrates password hashing (bcrypt) and session or JWT logic.
-- **Global Layout (`/app/layout.tsx` + `globals.css`)**: Shared header, footer, and CSS resets across all pages.
-- **Dashboard Layout (`/app/dashboard/layout.tsx` + `dashboard/theme.css`)**: Sidebar or top nav for authenticated flows, section-specific styling.
-- **Dashboard Page (`/app/dashboard/page.tsx`)**: Reads `data.json`, renders it as cards or tables.
-- **Static Data Source (`/app/dashboard/data.json`)**: Example dataset to demo dynamic rendering.
-- **TypeScript Configuration**: `tsconfig.json` with strict mode and path aliases (if any).
-
----
+- **Authentication**: Supabase Auth for admin sign-in; public sign-up disabled.  
+- **Public Media Pages**: Home carousel, Gallery grid, Video list, two `<iframe>` pages.  
+- **Admin Dashboard**: Protected area with CRUD on slider images, gallery images, videos, admin users.  
+- **File Upload**: Server actions handle file upload to Supabase Storage, then save metadata.  
+- **Data Tables**: Interactive tables for listing content with edit/delete controls.  
+- **Theming**: Light/dark mode using shadcn/ui (Radix UI + Tailwind CSS).  
+- **Containerized Dev**: Docker and docker-compose for local environment.  
+- **RLS Policies**: PostgreSQL Row Level Security for public reads and admin writes.  
 
 ## 5. Tech Stack & Tools
-
-- **Framework**: Next.js (App Router) for file-based routing, SSR/SSG, and API routes.
-- **Language**: TypeScript for type safety.
-- **UI Library**: React 18 for component-based UI.
-- **Styling**: Plain CSS via `globals.css` (global reset) and `theme.css` (sectional styling). Can easily migrate to CSS Modules or Tailwind in the future.
-- **Backend**: Node.js runtime provided by Next.js API routes.
-- **Password Hashing**: bcrypt (npm package).
-- **Session/JWT**: NextAuth.js or custom JWT logic (to be decided in implementation).
-- **IDE & Dev Tools**: VS Code with ESLint, Prettier extensions. Optionally, Cursor.ai for AI-assisted coding.
-
----
+- **Frontend**: Next.js (App Router) with TypeScript, React hooks.  
+- **UI Library**: shadcn/ui (built on Radix UI + Tailwind CSS).  
+- **Backend-as-a-Service**: Supabase: Auth, PostgreSQL Database, Storage.  
+- **Supabase Helpers**: `@supabase/ssr` and `@supabase/supabase-js`.  
+- **Containerization**: Docker, docker-compose.  
+- **Deployment**: Vercel (Next.js optimized).  
+- **IDE Integrations (optional)**: GitHub Copilot, VS Code.  
 
 ## 6. Non-Functional Requirements
-
-- **Performance**: Initial page load under 200 ms on a standard broadband connection. API responses under 300 ms.
-- **Security**:
-  - HTTPS only in production.
-  - Proper CORS, CSRF protection for API routes.
-  - Secure password storage (bcrypt with salt).
-  - No credentials or secrets checked into version control.
-- **Scalability**: Structure must support adding database integration, caching layers, and advanced auth flows without rewiring core app.
-- **Usability**: Forms should give real-time feedback on invalid input. Layout must be responsive (mobile > 320 px).
-- **Maintainability**: Code must adhere to TypeScript strict mode. Linting & formatting enforced by ESLint/Prettier.
-
----
+- **Performance**: Public pages should load in under 2 seconds on 3G/4G networks. Use SSR and caching where appropriate.  
+- **Security**: All traffic over HTTPS. Enforce Supabase RLS policies. Sanitize inputs and validate file uploads (size < 10 MB, allowed types).  
+- **Accessibility**: Meet WCAG 2.1 AA guidelines. Keyboard navigation and ARIA labels for all interactive components.  
+- **Responsiveness**: Layout adjusts smoothly across mobile, tablet, and desktop.  
+- **Scalability**: Support up to 1,000 concurrent users; offload media to Supabase Storage CDN.  
 
 ## 7. Constraints & Assumptions
-
-- **No Database**: Dashboard uses only `data.json`; real database integration is deferred.
-- **Node Version**: Requires Node.js >= 14.
-- **Next.js Version**: Built on Next.js 13+ App Router.
-- **Authentication**: Assumes availability of bcrypt or NextAuth.js at implementation time.
-- **Hosting**: Targets serverless or Node.js-capable hosting (e.g., Vercel, Netlify).
-- **Browser Support**: Modern evergreen browsers; no IE11 support required.
-
----
+- **Supabase Availability**: Assumes Supabase services (Auth, Database, Storage) are operational and within usage limits.  
+- **No Public Sign-Up**: Only admins can access sign-up functionality via a separate admin-only interface or direct Supabase console.  
+- **File Size & Format**: Images: JPG/PNG up to 10 MB; Videos: MP4/WEBM up to 50 MB or external embed URLs.  
+- **Admin Role**: We assume any authenticated user (role=`authenticated`) is an admin.  
+- **Environment**: Node.js v18+, Docker installed locally, environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, etc.) set in `.env.local` and Vercel.  
 
 ## 8. Known Issues & Potential Pitfalls
-
-- **Static Data Limitation**: `data.json` is only for demo. A real API or database will be needed to avoid stale data.
-  *Mitigation*: Define a clear interface for data fetching so swapping to a live endpoint is trivial.
-
-- **Global CSS Conflicts**: Using global styles can lead to unintended overrides.
-  *Mitigation*: Plan to migrate to CSS Modules or utility-first CSS in Phase 2.
-
-- **API Route Ambiguity**: Single `/api/auth/route.ts` handling both sign-up and sign-in could get complex.
-  *Mitigation*: Clearly branch on HTTP method (`POST /register` vs. `POST /login`) or split into separate files.
-
-- **Lack of Testing**: No test suite means regressions can slip in.
-  *Mitigation*: Build a minimal Jest + React Testing Library setup in an early iteration.
-
-- **Error Handling Gaps**: Client and server must handle edge cases (network failures, malformed input).
-  *Mitigation*: Define a standard error response schema and show user-friendly messages.
+- **API Rate Limits**: Supabase has row-level and bandwidth limits. Monitor usage; implement caching for public data.  
+- **RLS Misconfiguration**: Incorrect policies can block reads or writes. Test RLS rules thoroughly in the Supabase SQL editor.  
+- **Server Action Latency**: Upload+insert may cause delays. Show loading skeletons or progress indicators during operations.  
+- **CORS & Iframe Embeds**: External dashboards may block iframe framing. Confirm `X-Frame-Options` and CORS policies allow embedding.  
+- **Deployment Mismatches**: Docker dev environment may differ from Vercel. Use identical Node and dependency versions.  
+- **Large Media Handling**: Very large files can time out. Enforce client-side file size checks and consider chunked uploads if needed.
 
 ---
-
-This PRD should serve as the single source of truth for the AI model or any developer generating the next set of technical documents: Tech Stack Doc, Frontend Guidelines, Backend Structure, App Flow, File Structure, and IDE Rules. It contains all functional and non-functional requirements with no ambiguity, enabling seamless downstream development.
+This PRD provides a clear, unambiguous reference for building the Responsive Media Dashboard. All subsequent technical docs (Tech Stack, Frontend Guidelines, Backend Structure, App Flow, File Structure, IDE Rules) should align directly with the details laid out here.
