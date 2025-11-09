@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+﻿import type { ReactNode } from "react"
 import Link from "next/link"
 import {
   Activity,
@@ -18,12 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  GOOGLE_SHEET_ID,
-  getDbaseEntries,
-  getDataRekonEntries,
-  getSipariEntries,
-} from "@/lib/googleSheets"
+import { GOOGLE_SHEET_ID, getDataRekonEntries } from "@/lib/googleSheets"
 import { cn } from "@/lib/utils"
 
 const integerFormatter = new Intl.NumberFormat("id-ID", {
@@ -35,42 +30,24 @@ const decimalFormatter = new Intl.NumberFormat("id-ID", {
 })
 
 export default async function Home() {
-  const [dataRekon, sipari, dbase] = await Promise.all([
-    getDataRekonEntries(),
-    getSipariEntries(),
-    getDbaseEntries(),
-  ])
+  const dataRekon = await getDataRekonEntries()
 
+  const totalEntries = dataRekon.length
   const completedRekon = dataRekon.filter((entry) =>
     includes(entry.statusData, ["completed", "selesai"]),
   ).length
-  const pendingRekon = dataRekon.length - completedRekon
+  const pendingRekon = totalEntries - completedRekon
   const siakangReady = dataRekon.filter((entry) =>
     includes(entry.statusSiakang, ["sudah"]),
   ).length
   const siakangPending = dataRekon.filter((entry) =>
     includes(entry.statusSiakang, ["belum"]),
   ).length
-
-  const finishedSipari = sipari.filter((entry) =>
-    includes(entry.statusBongkar, ["selesai"]),
-  ).length
-  const processingSipari = sipari.filter((entry) =>
-    includes(entry.statusBongkar, ["proses"]),
-  ).length
-
-  const vesselsWithPermit = dbase.filter(
-    (entry) => entry.izinExpiry.iso !== null,
-  ).length
-  const expiredPermit = dbase.filter(
-    (entry) =>
-      entry.izinExpiry.iso !== null &&
-      new Date(entry.izinExpiry.iso).getTime() < Date.now(),
-  ).length
-
   const totalRekonVolume = sumNumeric(dataRekon.map((entry) => entry.volume))
-  const totalSipariVolume = sumNumeric(sipari.map((entry) => entry.volume))
-  const combinedVolume = totalRekonVolume + totalSipariVolume
+  const averageRekonVolume =
+    totalEntries > 0 ? totalRekonVolume / totalEntries : 0
+  const petugasCount = countUnique(dataRekon.map((entry) => entry.petugas))
+  const gudangCount = countUnique(dataRekon.map((entry) => entry.gudang))
 
   const recentRekon = sortByDate(dataRekon, (entry) => entry.arrivalDate.iso)
     .slice(0, 8)
@@ -79,18 +56,8 @@ export default async function Home() {
       arrivalDisplay: entry.arrivalDate.display ?? "Tidak tersedia",
     }))
 
-  const recentSipari = sortByDate(
-    sipari,
-    (entry) => entry.tanggalBongkar.iso,
-  ).slice(0, 8)
-
-  const largeVessels = [...dbase]
-    .sort((a, b) => (b.grossTonase ?? 0) - (a.grossTonase ?? 0))
-    .slice(0, 8)
-
   const latestTimestamp = latestDate([
     ...dataRekon.map((entry) => entry.arrivalDate.iso),
-    ...sipari.map((entry) => entry.tanggalBongkar.iso),
   ])
   const lastUpdated = latestTimestamp
     ? formatDateTime(latestTimestamp)
@@ -112,16 +79,15 @@ export default async function Home() {
               Monitoring Aktivitas Pelabuhan Perikanan Belawan
             </h1>
             <p className="mt-3 max-w-2xl text-sm sm:text-base text-slate-600 dark:text-slate-300">
-              Data disinkronkan langsung dari Google Sheets (
-              <strong>DataRekon</strong>, <strong>SIPARI</strong>, dan{" "}
-              <strong>Dbase</strong>) untuk memberikan gambaran terbaru
+              Data disinkronkan langsung dari Google Sheets (sheet{" "}
+              <strong>DataRekon</strong>) untuk memberikan gambaran terbaru
               mengenai kedatangan kapal, proses bongkar, dan status perizinan.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <Badge variant="secondary" className="bg-sky-500/10 text-sky-700 dark:text-sky-200">
                 Terakhir diperbarui {lastUpdated}
               </Badge>
-              <span>·</span>
+              <span>|</span>
               <span>Refresh otomatis setiap 5 menit</span>
             </div>
           </div>
@@ -144,27 +110,27 @@ export default async function Home() {
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             icon={<Ship className="h-5 w-5 text-sky-500" />}
-            label="Data Rekon"
-            value={formatInteger(dataRekon.length)}
-            subLabel={`${completedRekon} selesai · ${pendingRekon} proses`}
-          />
-          <StatCard
-            icon={<Activity className="h-5 w-5 text-emerald-500" />}
-            label="SIPARI"
-            value={`${formatDecimal(totalSipariVolume)} ton`}
-            subLabel={`${finishedSipari} selesai · ${processingSipari} proses`}
-          />
-          <StatCard
-            icon={<Database className="h-5 w-5 text-indigo-500" />}
-            label="Database Kapal"
-            value={formatInteger(dbase.length)}
-            subLabel={`${vesselsWithPermit} terdaftar · ${expiredPermit} kadaluarsa`}
+            label="Total Entri"
+            value={formatInteger(totalEntries)}
+            subLabel={`${completedRekon} selesai / ${pendingRekon} proses`}
           />
           <StatCard
             icon={<Waves className="h-5 w-5 text-cyan-500" />}
-            label="Tonase Gabungan"
-            value={`${formatDecimal(combinedVolume)} ton`}
-            subLabel={`${formatDecimal(totalRekonVolume)} ton berasal dari DataRekon`}
+            label="Volume Rekap"
+            value={`${formatDecimal(totalRekonVolume)} ton`}
+            subLabel={`Rata-rata ${formatDecimal(averageRekonVolume)} ton/kapal`}
+          />
+          <StatCard
+            icon={<Activity className="h-5 w-5 text-emerald-500" />}
+            label="Status Siakang"
+            value={`${formatInteger(siakangReady)} kapal`}
+            subLabel={`${formatInteger(siakangPending)} menunggu proses`}
+          />
+          <StatCard
+            icon={<Database className="h-5 w-5 text-indigo-500" />}
+            label="Petugas Aktif"
+            value={`${formatInteger(petugasCount)} petugas`}
+            subLabel={`${formatInteger(gudangCount)} gudang terlapor`}
           />
         </section>
 
@@ -218,9 +184,9 @@ export default async function Home() {
                             Datang {entry.arrivalDisplay}
                           </p>
                         </td>
-                        <td className="py-3">{entry.gudang ?? "—"}</td>
+                        <td className="py-3">{entry.gudang ?? "â€”"}</td>
                         <td className="py-3 font-semibold">
-                          {entry.volume ? `${formatDecimal(entry.volume)} ton` : "—"}
+                          {entry.volume ? `${formatDecimal(entry.volume)} ton` : "â€”"}
                         </td>
                         <td className="py-3">
                           <Badge
@@ -244,7 +210,7 @@ export default async function Home() {
                             {entry.statusSiakang ?? "Tidak tersedia"}
                           </Badge>
                         </td>
-                        <td className="py-3">{entry.petugas ?? "—"}</td>
+                        <td className="py-3">{entry.petugas ?? "â€”"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -298,6 +264,13 @@ function includes(value: string | null, needles: string[]) {
 
 function sumNumeric(values: Array<number | null>): number {
   return values.reduce((acc, value) => acc + (value ?? 0), 0)
+}
+
+function countUnique(values: Array<string | null | undefined>): number {
+  const normalized = values
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter((value) => value.length > 0)
+  return new Set(normalized).size
 }
 
 function sortByDate<T>(
@@ -382,3 +355,4 @@ function statusBadgeClass(value: string | null) {
   }
   return STATUS_STYLES.info
 }
+

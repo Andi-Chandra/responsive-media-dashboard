@@ -60,6 +60,11 @@ const staticData = {
       icon: IconVideo,
     },
     {
+      title: "DataRekon",
+      url: "/dashboard/rekon",
+      icon: IconListDetails,
+    },
+    {
       title: "Users",
       url: "/dashboard/users",
       icon: IconUsers,
