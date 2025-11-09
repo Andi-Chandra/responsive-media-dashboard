@@ -1,175 +1,539 @@
-"use client";
-
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import type { ReactNode } from "react"
+import Link from "next/link"
 import {
-  Code,
+  Activity,
+  Anchor,
+  ArrowUpRight,
   Database,
-  Shield,
-  Zap,
-  Globe,
-  Palette,
-  Package,
-} from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { AuthButtons, HeroAuthButtons } from "@/components/auth-buttons";
-import Image from "next/image";
+  Ship,
+  Waves,
+} from "lucide-react"
 
-export default function Home() {
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  GOOGLE_SHEET_ID,
+  getDbaseEntries,
+  getDataRekonEntries,
+  getSipariEntries,
+} from "@/lib/googleSheets"
+import { cn } from "@/lib/utils"
+
+const integerFormatter = new Intl.NumberFormat("id-ID", {
+  maximumFractionDigits: 0,
+})
+
+const decimalFormatter = new Intl.NumberFormat("id-ID", {
+  maximumFractionDigits: 1,
+})
+
+export default async function Home() {
+  const [dataRekon, sipari, dbase] = await Promise.all([
+    getDataRekonEntries(),
+    getSipariEntries(),
+    getDbaseEntries(),
+  ])
+
+  const completedRekon = dataRekon.filter((entry) =>
+    includes(entry.statusData, ["completed", "selesai"]),
+  ).length
+  const pendingRekon = dataRekon.length - completedRekon
+  const siakangReady = dataRekon.filter((entry) =>
+    includes(entry.statusSiakang, ["sudah"]),
+  ).length
+  const siakangPending = dataRekon.filter((entry) =>
+    includes(entry.statusSiakang, ["belum"]),
+  ).length
+
+  const finishedSipari = sipari.filter((entry) =>
+    includes(entry.statusBongkar, ["selesai"]),
+  ).length
+  const processingSipari = sipari.filter((entry) =>
+    includes(entry.statusBongkar, ["proses"]),
+  ).length
+
+  const vesselsWithPermit = dbase.filter(
+    (entry) => entry.izinExpiry.iso !== null,
+  ).length
+  const expiredPermit = dbase.filter(
+    (entry) =>
+      entry.izinExpiry.iso !== null &&
+      new Date(entry.izinExpiry.iso).getTime() < Date.now(),
+  ).length
+
+  const totalRekonVolume = sumNumeric(dataRekon.map((entry) => entry.volume))
+  const totalSipariVolume = sumNumeric(sipari.map((entry) => entry.volume))
+  const combinedVolume = totalRekonVolume + totalSipariVolume
+
+  const recentRekon = sortByDate(dataRekon, (entry) => entry.arrivalDate.iso)
+    .slice(0, 8)
+    .map((entry) => ({
+      ...entry,
+      arrivalDisplay: entry.arrivalDate.display ?? "Tidak tersedia",
+    }))
+
+  const recentSipari = sortByDate(
+    sipari,
+    (entry) => entry.tanggalBongkar.iso,
+  ).slice(0, 8)
+
+  const largeVessels = [...dbase]
+    .sort((a, b) => (b.grossTonase ?? 0) - (a.grossTonase ?? 0))
+    .slice(0, 8)
+
+  const latestTimestamp = latestDate([
+    ...dataRekon.map((entry) => entry.arrivalDate.iso),
+    ...sipari.map((entry) => entry.tanggalBongkar.iso),
+  ])
+  const lastUpdated = latestTimestamp
+    ? formatDateTime(latestTimestamp)
+    : "Tidak tersedia"
+
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(
+    GOOGLE_SHEET_ID,
+  )}/edit?usp=sharing`
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      {/* Hero Section */}
-      <div className="text-center py-12 sm:py-16 relative px-4">
-        <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <AuthButtons />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pb-12 pt-10 sm:px-6 lg:pb-16 lg:pt-16">
+        <header className="flex flex-col gap-6 rounded-3xl border border-slate-200/70 bg-white/70 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Responsive Media Dashboard
+            </p>
+            <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">
+              Monitoring Aktivitas Pelabuhan Perikanan Belawan
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm sm:text-base text-slate-600 dark:text-slate-300">
+              Data disinkronkan langsung dari Google Sheets (
+              <strong>DataRekon</strong>, <strong>SIPARI</strong>, dan{" "}
+              <strong>Dbase</strong>) untuk memberikan gambaran terbaru
+              mengenai kedatangan kapal, proses bongkar, dan status perizinan.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <Badge variant="secondary" className="bg-sky-500/10 text-sky-700 dark:text-sky-200">
+                Terakhir diperbarui {lastUpdated}
+              </Badge>
+              <span>·</span>
+              <span>Refresh otomatis setiap 5 menit</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                href={sheetUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium"
+              >
+                Buka Spreadsheet
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </Button>
             <ThemeToggle />
           </div>
-        </div>
+        </header>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-4">
-          <Image
-            src="/codeguide-logo.png"
-            alt="CodeGuide Logo"
-            width={50}
-            height={50}
-            className="rounded-xl sm:w-[60px] sm:h-[60px]"
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={<Ship className="h-5 w-5 text-sky-500" />}
+            label="Data Rekon"
+            value={formatInteger(dataRekon.length)}
+            subLabel={`${completedRekon} selesai · ${pendingRekon} proses`}
           />
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 bg-clip-text text-transparent font-parkinsans">
-            Codeguide Starter Fullstack
-          </h1>
-        </div>
-        <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto px-4 mb-8">
-          A modern full-stack TypeScript starter with authentication, database, and UI components
-        </p>
-        
-        <HeroAuthButtons />
+          <StatCard
+            icon={<Activity className="h-5 w-5 text-emerald-500" />}
+            label="SIPARI"
+            value={`${formatDecimal(totalSipariVolume)} ton`}
+            subLabel={`${finishedSipari} selesai · ${processingSipari} proses`}
+          />
+          <StatCard
+            icon={<Database className="h-5 w-5 text-indigo-500" />}
+            label="Database Kapal"
+            value={formatInteger(dbase.length)}
+            subLabel={`${vesselsWithPermit} terdaftar · ${expiredPermit} kadaluarsa`}
+          />
+          <StatCard
+            icon={<Waves className="h-5 w-5 text-cyan-500" />}
+            label="Tonase Gabungan"
+            value={`${formatDecimal(combinedVolume)} ton`}
+            subLabel={`${formatDecimal(totalRekonVolume)} ton berasal dari DataRekon`}
+          />
+        </section>
+
+        <section className="grid gap-6">
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Ship className="h-5 w-5 text-sky-500" />
+                  Data Rekonsiliasi Kedatangan
+                </CardTitle>
+                <CardDescription>
+                  Status kedatangan kapal dan kelengkapan dokumen siakang untuk
+                  {` `}
+                  {dataRekon.length} entri terbaru.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-200">
+                  {siakangReady} kapal siap siakang
+                </Badge>
+                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-200">
+                  {siakangPending} kapal menunggu siakang
+                </Badge>
+                <Badge className="bg-slate-500/10 text-slate-600 dark:text-slate-200">
+                  {formatDecimal(totalRekonVolume)} ton tercatat
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <th className="pb-2">Kapal</th>
+                      <th className="pb-2">Gudang</th>
+                      <th className="pb-2">Volume</th>
+                      <th className="pb-2">Status Data</th>
+                      <th className="pb-2">Status Siakang</th>
+                      <th className="pb-2">Petugas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {recentRekon.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+                        <td className="py-3">
+                          <div className="font-medium text-slate-900 dark:text-white">
+                            {entry.vessel}
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Datang {entry.arrivalDisplay}
+                          </p>
+                        </td>
+                        <td className="py-3">{entry.gudang ?? "—"}</td>
+                        <td className="py-3 font-semibold">
+                          {entry.volume ? `${formatDecimal(entry.volume)} ton` : "—"}
+                        </td>
+                        <td className="py-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border px-2",
+                              statusBadgeClass(entry.statusData),
+                            )}
+                          >
+                            {entry.statusData ?? "Tidak tersedia"}
+                          </Badge>
+                        </td>
+                        <td className="py-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border px-2",
+                              statusBadgeClass(entry.statusSiakang),
+                            )}
+                          >
+                            {entry.statusSiakang ?? "Tidak tersedia"}
+                          </Badge>
+                        </td>
+                        <td className="py-3">{entry.petugas ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  Menampilkan {recentRekon.length} entri terbaru dari DataRekon.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Anchor className="h-5 w-5 text-emerald-500" />
+                  SIPARI - Progres Bongkar
+                </CardTitle>
+                <CardDescription>
+                  Rekap pendataan bongkar ikan oleh petugas SIPARI.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-200">
+                  {finishedSipari} selesai bongkar
+                </Badge>
+                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-200">
+                  {processingSipari} proses bongkar
+                </Badge>
+                <Badge className="bg-slate-500/10 text-slate-600 dark:text-slate-200">
+                  {formatDecimal(totalSipariVolume)} ton total
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <th className="pb-2">Kapal</th>
+                      <th className="pb-2">Alat Tangkap</th>
+                      <th className="pb-2">GT</th>
+                      <th className="pb-2">Volume</th>
+                      <th className="pb-2">Status Bongkar</th>
+                      <th className="pb-2">Petugas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {recentSipari.map((entry, index) => (
+                      <tr
+                        key={`${entry.vessel}-${index}`}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
+                      >
+                        <td className="py-3">
+                          <div className="font-medium text-slate-900 dark:text-white">
+                            {entry.vessel}
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Bongkar {entry.tanggalBongkar.display ?? "Tidak tersedia"}
+                          </p>
+                        </td>
+                        <td className="py-3">{entry.alatTangkap ?? "—"}</td>
+                        <td className="py-3">{entry.grossTonage ?? "—"}</td>
+                        <td className="py-3 font-semibold">
+                          {entry.volume ? `${formatDecimal(entry.volume)} ton` : "—"}
+                        </td>
+                        <td className="py-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border px-2",
+                              statusBadgeClass(entry.statusBongkar),
+                            )}
+                          >
+                            {entry.statusBongkar ?? "Tidak tersedia"}
+                          </Badge>
+                        </td>
+                        <td className="py-3">{entry.petugas ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  Menampilkan {recentSipari.length} catatan SIPARI terbaru.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200/80 dark:border-slate-800">
+            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Database className="h-5 w-5 text-indigo-500" />
+                  Dbase - Data Kapal Terdaftar
+                </CardTitle>
+                <CardDescription>
+                  Informasi perizinan dan spesifikasi kapal yang tersimpan di
+                  Dbase.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-200">
+                  {vesselsWithPermit} kapal memiliki data izin
+                </Badge>
+                <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-200">
+                  {expiredPermit} izin kadaluarsa
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      <th className="pb-2">Kapal</th>
+                      <th className="pb-2">API</th>
+                      <th className="pb-2">GT</th>
+                      <th className="pb-2">Gudang</th>
+                      <th className="pb-2">Status Perizinan</th>
+                      <th className="pb-2">Masa Berlaku</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {largeVessels.map((entry, index) => (
+                      <tr
+                        key={`${entry.vessel}-${index}`}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
+                      >
+                        <td className="py-3">
+                          <div className="font-medium text-slate-900 dark:text-white">
+                            {entry.vessel}
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {entry.pemilik ?? "Pemilik tidak tercatat"}
+                          </p>
+                        </td>
+                        <td className="py-3">{entry.api ?? "—"}</td>
+                        <td className="py-3">{entry.grossTonase ?? "—"}</td>
+                        <td className="py-3">{entry.gudang ?? "—"}</td>
+                        <td className="py-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border px-2",
+                              statusBadgeClass(entry.statusPerizinan),
+                            )}
+                          >
+                            {entry.statusPerizinan ?? "Tidak tersedia"}
+                          </Badge>
+                        </td>
+                        <td className="py-3">
+                          {entry.izinExpiry.display ?? "Tidak tersedia"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  Menampilkan {largeVessels.length} kapal dengan GT terbesar.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       </div>
-
-      <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-8 max-w-5xl">
-        {/* Project Overview */}
-        <div className="text-center mb-8">
-          <div className="text-4xl sm:text-5xl mb-2">🚀</div>
-          <div className="font-bold text-lg sm:text-xl mb-2">Modern Full-Stack Starter</div>
-          <div className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
-            This project includes everything you need to build a modern web application with TypeScript, 
-            authentication, database integration, and a beautiful UI component library.
-          </div>
-        </div>
-
-        {/* Tech Stack Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-          {/* Frontend */}
-          <Card className="p-4 sm:p-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-200/50 dark:border-blue-700/30">
-            <div className="flex items-center gap-3 mb-3">
-              <Globe className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              <h3 className="font-semibold text-lg">Frontend</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>Next.js 15</strong> - React framework with App Router</li>
-              <li>• <strong>React 19</strong> - Latest React with concurrent features</li>
-              <li>• <strong>TypeScript</strong> - Type-safe development</li>
-              <li>• <strong>Turbopack</strong> - Fast bundling and dev server</li>
-            </ul>
-          </Card>
-
-          {/* UI & Styling */}
-          <Card className="p-4 sm:p-6 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 border-purple-200/50 dark:border-purple-700/30">
-            <div className="flex items-center gap-3 mb-3">
-              <Palette className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              <h3 className="font-semibold text-lg">UI & Styling</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>Tailwind CSS 4</strong> - Utility-first CSS framework</li>
-              <li>• <strong>Radix UI</strong> - Accessible component primitives</li>
-              <li>• <strong>Lucide Icons</strong> - Beautiful icon library</li>
-              <li>• <strong>Dark Mode</strong> - Built-in theme switching</li>
-            </ul>
-          </Card>
-
-          {/* Authentication */}
-          <Card className="p-4 sm:p-6 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-200/50 dark:border-green-700/30">
-            <div className="flex items-center gap-3 mb-3">
-              <Shield className="w-6 h-6 text-green-600 dark:text-green-400" />
-              <h3 className="font-semibold text-lg">Authentication</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>Better Auth</strong> - Modern auth solution</li>
-              <li>• <strong>Session Management</strong> - Secure user sessions</li>
-              <li>• <strong>Type Safety</strong> - Fully typed auth hooks</li>
-              <li>• <strong>Multiple Providers</strong> - Social login support</li>
-            </ul>
-          </Card>
-
-          {/* Database */}
-          <Card className="p-4 sm:p-6 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/10 dark:to-blue-900/10 border-cyan-200/50 dark:border-cyan-700/30">
-            <div className="flex items-center gap-3 mb-3">
-              <Database className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
-              <h3 className="font-semibold text-lg">Database</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>PostgreSQL</strong> - Robust relational database</li>
-              <li>• <strong>Drizzle ORM</strong> - Type-safe database toolkit</li>
-              <li>• <strong>Docker Setup</strong> - Containerized development</li>
-              <li>• <strong>Migrations</strong> - Schema version control</li>
-            </ul>
-          </Card>
-
-          {/* Development */}
-          <Card className="p-4 sm:p-6 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 border-orange-200/50 dark:border-orange-700/30">
-            <div className="flex items-center gap-3 mb-3">
-              <Code className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-              <h3 className="font-semibold text-lg">Development</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>ESLint</strong> - Code linting and formatting</li>
-              <li>• <strong>Hot Reload</strong> - Instant development feedback</li>
-              <li>• <strong>Docker</strong> - Consistent dev environment</li>
-              <li>• <strong>npm Scripts</strong> - Automated workflows</li>
-            </ul>
-          </Card>
-
-          {/* Components */}
-          <Card className="p-4 sm:p-6 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/10 dark:to-purple-900/10 border-indigo-200/50 dark:border-indigo-700/30">
-            <div className="flex items-center gap-3 mb-3">
-              <Package className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-              <h3 className="font-semibold text-lg">Components</h3>
-            </div>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>Form Handling</strong> - React Hook Form + Zod</li>
-              <li>• <strong>Data Visualization</strong> - Recharts integration</li>
-              <li>• <strong>Date Pickers</strong> - Beautiful date components</li>
-              <li>• <strong>Notifications</strong> - Toast and alert systems</li>
-            </ul>
-          </Card>
-        </div>
-
-        {/* Getting Started */}
-        <Card className="p-6 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50">
-          <h3 className="font-bold text-xl mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-500" />
-            Quick Start
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-2">Development</h4>
-              <div className="bg-black/5 dark:bg-white/5 rounded-lg p-3 font-mono text-sm">
-                <div>npm install</div>
-                <div>npm run db:dev</div>
-                <div>npm run dev</div>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-2">Production</h4>
-              <div className="bg-black/5 dark:bg-white/5 rounded-lg p-3 font-mono text-sm">
-                <div>npm run build</div>
-                <div>npm run start</div>
-                <div>npm run docker:up</div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </main>
     </div>
-  );
+  )
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  subLabel,
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+  subLabel: string
+}) {
+  return (
+    <Card className="border-slate-200/80 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <CardDescription>{label}</CardDescription>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-semibold text-slate-900 dark:text-white">
+          {value}
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{subLabel}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function includes(value: string | null, needles: string[]) {
+  if (!value) {
+    return false
+  }
+  const compare = value.toLowerCase()
+  return needles.some((needle) => compare.includes(needle))
+}
+
+function sumNumeric(values: Array<number | null>): number {
+  return values.reduce((acc, value) => acc + (value ?? 0), 0)
+}
+
+function sortByDate<T>(
+  items: T[],
+  getter: (item: T) => string | null,
+): T[] {
+  return [...items].sort((a, b) => {
+    const aTime = getter(a) ? new Date(getter(a) as string).getTime() : 0
+    const bTime = getter(b) ? new Date(getter(b) as string).getTime() : 0
+    return bTime - aTime
+  })
+}
+
+function latestDate(values: Array<string | null>): number | null {
+  const timestamps = values
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value as string).getTime())
+    .filter((value) => Number.isFinite(value))
+  if (!timestamps.length) {
+    return null
+  }
+  return Math.max(...timestamps)
+}
+
+function formatDateTime(timestamp: number) {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp))
+}
+
+function formatInteger(value: number) {
+  return integerFormatter.format(value)
+}
+
+function formatDecimal(value: number) {
+  return decimalFormatter.format(value)
+}
+
+const STATUS_STYLES = {
+  success:
+    "border-emerald-400/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-200",
+  warning:
+    "border-amber-400/40 bg-amber-500/15 text-amber-600 dark:text-amber-200",
+  danger: "border-rose-400/40 bg-rose-500/10 text-rose-600 dark:text-rose-200",
+  info: "border-blue-400/40 bg-blue-500/10 text-blue-600 dark:text-blue-200",
+  neutral:
+    "border-slate-400/40 bg-slate-500/10 text-slate-600 dark:text-slate-200",
+}
+
+function statusBadgeClass(value: string | null) {
+  if (!value) {
+    return STATUS_STYLES.neutral
+  }
+
+  const status = value.toLowerCase()
+  if (
+    status.includes("completed") ||
+    status.includes("selesai") ||
+    status.includes("sudah") ||
+    status.includes("aktif")
+  ) {
+    return STATUS_STYLES.success
+  }
+  if (
+    status.includes("proses") ||
+    status.includes("pending") ||
+    status.includes("uncompleted")
+  ) {
+    return STATUS_STYLES.warning
+  }
+  if (
+    status.includes("belum") ||
+    status.includes("expired") ||
+    status.includes("kadaluarsa") ||
+    status.includes("rusak")
+  ) {
+    return STATUS_STYLES.danger
+  }
+  return STATUS_STYLES.info
 }
